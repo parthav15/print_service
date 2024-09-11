@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from PIL import Image
 
 ROLE = {
     (1, 'Administrator'),
@@ -12,6 +13,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150, default="")
     last_name = models.CharField(max_length=150, default="")
+    username = models.CharField(max_length=150, default="", blank=True)
     phone_number = models.CharField(max_length=150, default="")
     address = models.TextField(blank=True, null=True)
     is_admin = models.BooleanField('Is admin', default=False)
@@ -52,13 +54,12 @@ class Otp(models.Model):
 class PrintJob(models.Model):
     user = models.ForeignKey('User', on_delete=models.CASCADE, null=True, blank=True)
     document = models.FileField(upload_to='uploads/')
-    pages = models.IntegerField(default=1)
-    copies = models.IntegerField(default=1)
-    color = models.BooleanField(default=False)
+    bw_pages = models.IntegerField(default=0)
+    color_pages = models.IntegerField(default=0)
     printer = models.ForeignKey('Printer', on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_printed = models.BooleanField(default=False)
-    
+
     def __str__(self):
         return f"Print Job {self.id} - {self.document.name}"
     
@@ -113,9 +114,3 @@ class Transaction(models.Model):
     
     def __str__(self):
         return f"Transaction {self.razorpay_payment_id}"
-    
-    
-    
-    
-    
-    

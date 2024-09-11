@@ -20,8 +20,11 @@ from printapp import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('register_login/', views.user_register_login, name='register_login'),
+    path('login/', views.user_login, name='user_login'),
+    path('register/', views.user_register, name='user_register'),
     path('verify_otp/', views.verify_otp, name='verify_otp'),
     path('logout/', views.user_logout, name='logout'),
     path('user_get_details/', views.user_get_details, name='user_get_details'),
+    path('user_edit/', views.user_edit, name='user_edit'),
+    path('upload_print_job/', views.upload_print_job, name='upload_print_job'),
 ]
