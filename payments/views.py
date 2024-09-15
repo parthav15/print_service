@@ -85,11 +85,16 @@ def verify_order(request):
         payment.save()
         
         print_job = payment.print_job
-        print_job.is_printed = True
+        print_job.is_payment = True
         print_job.save()
         
-        return JsonResponse({'success': True, 'message': 'Payment verified successfully.'}, status=200)
-    
+        success, message = send_to_printer(print_job)
+        
+        if success:
+            return JsonResponse({'success': True, 'message': 'Payment verified and document sent to printer successfully.'}, status=200)
+        else:
+            return JsonResponse({'success': False, 'message': f'Payment verified but failed to send document to printer: {message}'}, status=500)
+            
     except razorpay.errors.SignatureVerificationError:
         if payment:
             payment.status = 'Failed'

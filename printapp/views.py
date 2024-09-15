@@ -286,3 +286,49 @@ def upload_print_job(request):
     
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error creating print job: {str(e)}'}, status=400)
+    
+import subprocess
+import json
+import os
+def get_connected_printer():
+    try:
+        command = ['powershell', '-Command', 'Get-Printer | Where-Object {$_.Default -eq $true} | Select-Object -ExpandProperty Name']
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        printer_name = result.stdout.strip()
+        
+        if printer_name:
+            return printer_name
+        else:
+            return None
+    
+    except subprocess.CalledProcessError as e:
+        return None, f"Error getting connected printer: {str(e)}"
+    
+def send_to_printer(print_job):
+    printer_name = get_connected_printer()
+    if not printer_name:
+        return False, "No connected printer found."
+    
+    document_path = print_job.document.path
+    
+    if not os.path.exists(document_path):
+        return False, "Document not found."
+    
+    try:
+        if print_job.bw_pages > 0:
+            bw_command = f'Set-PrintConfiguration -PrinterName "{printer_name}" -Color $false'
+            subprocess.run(['powershell', '-Command', bw_command], check=True)
+        elif print_job.color_pages > 0:
+            color_command = f'Set-PrintConfiguration -PrinterName "{printer_name}" -Color $true'
+            subprocess.run(['powershell', '-Command', color_command], check=True)
+        else:
+            return False, "Neither black-and-white nor color pages specified."
+        
+        print_command = ['powershell', '-Command', f'Start-Process "{document_path}" -ArgumentList "/p /h" -NoNewWindow']
+        subprocess.run(print_command, check=True)
+        
+        print_job.is_printed = True
+        print_job.save()
+        return True, "Document sent to printer successfully."
+    except subprocess.CalledProcessError as e:
+        return False, f"Error sending document to printer: {str(e)}"

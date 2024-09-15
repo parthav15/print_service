@@ -57,8 +57,10 @@ class PrintJob(models.Model):
     bw_pages = models.IntegerField(default=0)
     color_pages = models.IntegerField(default=0)
     printer = models.ForeignKey('Printer', on_delete=models.SET_NULL, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
     is_printed = models.BooleanField(default=False)
+    is_payment = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    modified_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Print Job {self.id} - {self.document.name}"
