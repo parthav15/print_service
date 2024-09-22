@@ -8,6 +8,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.mail import send_mail
 from django.contrib.auth import authenticate, login, logout
 from django.core.files.storage import default_storage
+from payments.views import calculate_print_job_price
+import subprocess
+import json
+import os
 
 SECRET_KEY = settings.SECRET_KEY
 
@@ -286,13 +290,76 @@ def upload_print_job(request):
     
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error creating print job: {str(e)}'}, status=400)
+   
+@csrf_exempt    
+def pay_at_the_counter(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method. Use POST!'}, status=405)
     
-import subprocess
-import json
-import os
+    print_job_id = request.POST.get('print_job_id')
+    
+    if not print_job_id:
+        return JsonResponse({'success': False, 'message': 'Print Job ID is required.'}, status=400)
+
+    try:
+        print_job = PrintJob.objects.get(id=print_job_id)
+        
+        total_price = calculate_print_job_price(print_job.bw_pages, print_job.color_pages)
+        
+        print_job.is_payment = False
+        print_job.save()
+        
+        owner_email = 'parthavsabrwal@gmail.com'
+        subject = f"Payment request for Print Job {print_job.id}"
+        message = f"A user has requested to pay at the counter for Print Job {print_job.id}. Please approve the request in the admin panel."
+        
+        send_mail(subject, message, settings.EMAIL_HOST_USER, [owner_email])
+        
+        return JsonResponse({'success': True, 'message': 'Payment request sent. Awaiting Owner Approval', 'total_price': str(total_price)}, status=200)
+    
+    except PrintJob.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Print Job not found.'}, status=404)
+   
+@csrf_exempt 
+def approve_decline_payment(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': True, 'message': 'Invalid request method. Use POST!'}, status=405)
+    
+    print_job_id = request.POST.get('print_job_id')
+    if not print_job_id:
+        return JsonResponse({'success': False, 'message': 'Print Job ID is required.'}, status=400)
+    
+    try:
+        print_job = PrintJob.objects.get(id=print_job_id)
+        
+        if 'approve' in request.POST:
+            print_job.is_payment = True
+            print_job.status = 'approved'
+            print_job.save()
+            
+            success, message = send_to_printer(print_job)
+            if success:
+                print_job.status = 'printed'
+                print_job.save()
+                return JsonResponse({'success': True, 'message': 'Payment approved and print job sent to printer.'}, status=200)
+            else:
+                return JsonResponse({'success': False, 'message': f'Payment approved, but printing failed: {message}'}, status=500)
+        
+        elif 'decline' in request.POST:
+            print_job.status = 'declined'
+            print_job.save()
+            return JsonResponse({'success': True, 'message': 'Payment declined successfully.'}, status=200)
+        
+        else:
+            return JsonResponse({'success': False, 'message': 'Invalid action. Use "approve" or "decline".'}, status=400)
+    
+    except PrintJob.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Print Job not found.'}, status=404)
+
 def get_connected_printer():
     try:
-        command = ['powershell', '-Command', 'Get-Printer | Where-Object {$_.Default -eq $true} | Select-Object -ExpandProperty Name']
+        command = [r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe', 
+                   '-Command', 'Get-Printer | Where-Object {$_.PortName -like "USB*"} | Select-Object -ExpandProperty Name']
         result = subprocess.run(command, capture_output=True, text=True, check=True)
         printer_name = result.stdout.strip()
         
@@ -303,32 +370,38 @@ def get_connected_printer():
     
     except subprocess.CalledProcessError as e:
         return None, f"Error getting connected printer: {str(e)}"
-    
+
 def send_to_printer(print_job):
     printer_name = get_connected_printer()
     if not printer_name:
         return False, "No connected printer found."
-    
-    document_path = print_job.document.path
-    
+
+    document_path = os.path.join(settings.MEDIA_ROOT, print_job.document.name)
+    document_path = document_path.replace('/', '\\')
+
     if not os.path.exists(document_path):
-        return False, "Document not found."
-    
+        return False, f"Document not found at {document_path}."
+
     try:
         if print_job.bw_pages > 0:
             bw_command = f'Set-PrintConfiguration -PrinterName "{printer_name}" -Color $false'
-            subprocess.run(['powershell', '-Command', bw_command], check=True)
+            subprocess.run([r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe', '-Command', bw_command], check=True)
         elif print_job.color_pages > 0:
             color_command = f'Set-PrintConfiguration -PrinterName "{printer_name}" -Color $true'
-            subprocess.run(['powershell', '-Command', color_command], check=True)
+            subprocess.run([r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe', '-Command', color_command], check=True)
         else:
             return False, "Neither black-and-white nor color pages specified."
-        
-        print_command = ['powershell', '-Command', f'Start-Process "{document_path}" -ArgumentList "/p /h" -NoNewWindow']
-        subprocess.run(print_command, check=True)
-        
+
+        print_command = [
+            r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe',
+            '-Command',
+            f'Start-Process -FilePath "{document_path}" -Verb Print'
+        ]
+        result = subprocess.run(print_command, check=True)
+
         print_job.is_printed = True
         print_job.save()
         return True, "Document sent to printer successfully."
+
     except subprocess.CalledProcessError as e:
         return False, f"Error sending document to printer: {str(e)}"

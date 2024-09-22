@@ -8,6 +8,13 @@ ROLE = {
     (3, 'Customer Support Staff')
 }
 
+STATUS_CHOICES = [
+    ('pending', 'Pending'),
+    ('approved', 'Approved'),
+    ('declined', 'Declined'),
+    ('printed', 'Printed'),
+]
+
 class User(AbstractUser):
     id = models.AutoField(primary_key=True)
     email = models.EmailField(unique=True)
@@ -59,6 +66,7 @@ class PrintJob(models.Model):
     printer = models.ForeignKey('Printer', on_delete=models.SET_NULL, null=True, blank=True)
     is_printed = models.BooleanField(default=False)
     is_payment = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     modified_at = models.DateTimeField(auto_now=True)
 

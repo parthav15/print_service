@@ -27,4 +27,7 @@ urlpatterns = [
     path('user_get_details/', views.user_get_details, name='user_get_details'),
     path('user_edit/', views.user_edit, name='user_edit'),
     path('upload_print_job/', views.upload_print_job, name='upload_print_job'),
+    path('pay_at_counter/', views.pay_at_the_counter, name='pay_at_the_counter'),
+    path('approve_decline/', views.approve_decline_payment, name='approve_decline_payment'),
 ]
+
