@@ -166,5 +166,5 @@ EMAIL_HOST_USER = 'noreply@ntftravel.com'
 EMAIL_HOST_PASSWORD = 'NtfTravel@421#'
 EMAIL_USE_SSL = True
 
-RAZORPAY_KEY_ID = 'your_key_id'
-RAZORPAY_KEY_SECRET = 'your_key_secret'
+RAZORPAY_KEY_ID = 'rzp_test_ew74Ktx27rLLPC'
+RAZORPAY_KEY_SECRET = 'zM9aUHrCKXRyoyy6DYXNjzda'

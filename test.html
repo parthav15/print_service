@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Razorpay Payment</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+    <h1>Pay for your Print Job</h1>
+
+    <div id="message"></div>
+
+    <button id="pay-btn">Pay Now</button>
+
+    <script>
+        document.getElementById('pay-btn').addEventListener('click', function () {
+            const printJobId = 10; 
+            fetch('http://127.0.0.1:8000/payments/create_order/', {  
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `print_job_id=${printJobId}`
+            })
+            .then(response => response.json())
+            .then(orderData => {
+                if (orderData.success) {
+                    const options = {
+                        key: 'rzp_test_ew74Ktx27rLLPC', 
+                        amount: orderData.amount, 
+                        currency: orderData.currency,
+                        name: "Print Service",
+                        description: "Payment for print job",
+                        order_id: orderData.order_id,
+                        handler: function (response) {
+                            verifyPayment(response);
+                        },
+                        prefill: {
+                            name: "Dhruv",
+                            email: "dhruv@example.com",
+                        },
+                        theme: {
+                            color: "#3399cc"
+                        }
+                    };
+                    const rzp = new Razorpay(options);
+                    rzp.open();
+                } else {
+                    document.getElementById('message').innerText = orderData.message;
+                }
+            })
+            .catch(error => {
+                document.getElementById('message').innerText = 'Error creating order: ' + error;
+            });
+        });
+
+        function verifyPayment(paymentDetails) {
+            fetch('http://127.0.0.1:8000/payments/verify_order/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `razorpay_payment_id=${paymentDetails.razorpay_payment_id}&razorpay_order_id=${paymentDetails.razorpay_order_id}&razorpay_signature=${paymentDetails.razorpay_signature}`
+            })
+            .then(response => response.json())
+            .then(verificationData => {
+                if (verificationData.success) {
+                    document.getElementById('message').innerText = verificationData.message;
+                } else {
+                    document.getElementById('message').innerText = 'Payment verification failed: ' + verificationData.message;
+                }
+            })
+            .catch(error => {
+                document.getElementById('message').innerText = 'Error verifying payment: ' + error;
+            });
+        }
+    </script>
+</body>
+</html>

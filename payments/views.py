@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from printapp.models import PrintJob, Payment, Transaction
 from decimal import Decimal
+from printapp.utils import send_to_printer
 
 def calculate_print_job_price(bw_pages, color_pages):
     bw_price_per_page = Decimal('2.00')
@@ -37,7 +38,7 @@ def create_order(request):
             'receipt': f'print_job_{print_job.id}',
             'payment_capture': 1
         }
-        razorpay_order = razorpay_client.order.create(data=order_data)
+        razorpay_order = client.order.create(data=order_data)
         
         payment = Payment.objects.create(
             print_job=print_job,
@@ -74,7 +75,7 @@ def verify_order(request):
         transaction = Transaction.objects.get(razorpay_order_id=razorpay_order_id)
         payment = transaction.payment
         
-        razorpay_client_utility.verify_payment_signature({
+        client.utility.verify_payment_signature({
             'razorpay_payment_id': razorpay_payment_id,
             'razorpay_order_id': razorpay_order_id,
             'razorpay_signature': razorpay_signature_id,
@@ -86,11 +87,14 @@ def verify_order(request):
         
         print_job = payment.print_job
         print_job.is_payment = True
+        print_job.status = 'approved'
         print_job.save()
         
         success, message = send_to_printer(print_job)
         
         if success:
+            print_job.status = 'printed'
+            print_job.save()
             return JsonResponse({'success': True, 'message': 'Payment verified and document sent to printer successfully.'}, status=200)
         else:
             return JsonResponse({'success': False, 'message': f'Payment verified but failed to send document to printer: {message}'}, status=500)

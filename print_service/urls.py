@@ -15,8 +15,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from printapp import views 
+from django.conf import settings
+from django.conf.urls.static import static
+from payments import urls as payments_urls
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,5 +32,8 @@ urlpatterns = [
     path('upload_print_job/', views.upload_print_job, name='upload_print_job'),
     path('pay_at_counter/', views.pay_at_the_counter, name='pay_at_the_counter'),
     path('approve_decline/', views.approve_decline_payment, name='approve_decline_payment'),
+    path('payments/', include(payments_urls)),
 ]
 
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
