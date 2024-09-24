@@ -274,8 +274,7 @@ def upload_print_job(request):
         return JsonResponse({'success': False, 'message': 'bw_pages and color_pages must be integers.'}, status=400)
     
     try:
-        filename = f'uploads/user_{user.id}_document_{document.name}'
-        document_path = default_storage.save(filename, document)
+        document_path = default_storage.save(f'uploads/{document.name}', document)
         
         print_job = PrintJob.objects.create(
             user=user,

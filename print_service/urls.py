@@ -20,6 +20,7 @@ from printapp import views
 from django.conf import settings
 from django.conf.urls.static import static
 from payments import urls as payments_urls
+from admin import urls as admin_urls
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -33,6 +34,7 @@ urlpatterns = [
     path('pay_at_counter/', views.pay_at_the_counter, name='pay_at_the_counter'),
     path('approve_decline/', views.approve_decline_payment, name='approve_decline_payment'),
     path('payments/', include(payments_urls)),
+    path('admin_panel/', include(admin_urls)),
 ]
 
 if settings.DEBUG:
