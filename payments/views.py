@@ -81,6 +81,9 @@ def verify_order(request):
             'razorpay_signature': razorpay_signature_id,
         })
         
+        transaction.razorpay_payment_id = razorpay_payment_id
+        transaction.razorpay_signature = razorpay_signature_id
+        
         payment.transaction_id = razorpay_payment_id
         payment.status = 'Completed'
         payment.save()

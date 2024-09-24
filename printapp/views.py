@@ -1,7 +1,7 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 import jwt
 from django.conf import settings
-from .models import User, Otp, PrintJob
+from .models import User, Otp, PrintJob, Payment, Transaction
 import random
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -353,3 +353,45 @@ def approve_decline_payment(request):
     
     except PrintJob.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Print Job not found.'}, status=404)
+
+@csrf_exempt
+def get_booking_detail(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method. Use POST!'}, status=405)
+    
+    print_job_id = request.POST.get('print_job_id')
+    if not print_job_id:
+        return JsonResponse({'success': False, 'message': 'Print Job ID is required.'}, status=400)
+    
+    print_job = get_object_or_404(PrintJob, id=print_job_id)
+    
+    try:
+        payment = Payment.objects.filter(print_job=print_job).first()
+        transaction = Transaction.objects.filter(payment=payment).first()
+        
+        document_url = print_job.document.url if print_job.document else None
+        
+        booking_details = {
+            'print_job': {
+                'id': print_job.id,
+                'bw_pages': print_job.bw_pages,
+                'color_pages': print_job.color_pages,
+                'is_printed': print_job.is_printed,
+                'is_payment': print_job.is_payment,
+                'document_url': document_url,
+            },
+            'payment': {
+                'amount': payment.amount if payment else None,
+                'status': payment.status if payment else None,
+                'transaction_id': payment.transaction_id if payment else None,
+            },
+            'transaction': {
+                'razorpay_order_id': transaction.razorpay_order_id if transaction else None,
+                'razorpay_payment_id': transaction.razorpay_payment_id if transaction else None,
+            }
+        }
+        
+        return JsonResponse({'success': True, 'data': booking_details}, status=200)
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error fetching booking details: {str(e)}'}, status=400)

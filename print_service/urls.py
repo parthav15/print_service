@@ -33,6 +33,7 @@ urlpatterns = [
     path('upload_print_job/', views.upload_print_job, name='upload_print_job'),
     path('pay_at_counter/', views.pay_at_the_counter, name='pay_at_the_counter'),
     path('approve_decline/', views.approve_decline_payment, name='approve_decline_payment'),
+    path('get_booking_detail/', views.get_booking_detail, name='get_booking_detail'),
     path('payments/', include(payments_urls)),
     path('admin_panel/', include(admin_urls)),
 ]
