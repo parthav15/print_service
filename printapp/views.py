@@ -317,42 +317,6 @@ def pay_at_the_counter(request):
     
     except PrintJob.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Print Job not found.'}, status=404)
-   
-@csrf_exempt 
-def approve_decline_payment(request):
-    if request.method != 'POST':
-        return JsonResponse({'success': True, 'message': 'Invalid request method. Use POST!'}, status=405)
-    
-    print_job_id = request.POST.get('print_job_id')
-    if not print_job_id:
-        return JsonResponse({'success': False, 'message': 'Print Job ID is required.'}, status=400)
-    
-    try:
-        print_job = PrintJob.objects.get(id=print_job_id)
-        
-        if 'approve' in request.POST:
-            print_job.is_payment = True
-            print_job.status = 'approved'
-            print_job.save()
-            
-            success, message = send_to_printer(print_job)
-            if success:
-                print_job.status = 'printed'
-                print_job.save()
-                return JsonResponse({'success': True, 'message': 'Payment approved and print job sent to printer.'}, status=200)
-            else:
-                return JsonResponse({'success': False, 'message': f'Payment approved, but printing failed: {message}'}, status=500)
-        
-        elif 'decline' in request.POST:
-            print_job.status = 'declined'
-            print_job.save()
-            return JsonResponse({'success': True, 'message': 'Payment declined successfully.'}, status=200)
-        
-        else:
-            return JsonResponse({'success': False, 'message': 'Invalid action. Use "approve" or "decline".'}, status=400)
-    
-    except PrintJob.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Print Job not found.'}, status=404)
 
 @csrf_exempt
 def get_booking_detail(request):

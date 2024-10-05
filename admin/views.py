@@ -7,6 +7,7 @@ from django.db.models import Sum, Count
 from printapp.models import User, PrintJob, Payment, Transaction
 from datetime import timedelta, datetime
 from printapp.views import jwt_encode, jwt_decode, auth_user
+from printapp.utils import send_to_printer
 import json
 import calendar
 from decimal import Decimal
@@ -54,6 +55,50 @@ def admin_logout(request):
     except Exception as e:
         return JsonResponse({'success': 'False', 'message': f'Error: {e}'}, status=400)
     
+
+@csrf_exempt
+def admin_get_details(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method. Use POST!'}, status=405)
+    
+    try:
+        bearer = request.headers.get('Authorization')
+        if not bearer:
+            return JsonResponse({'success': False, 'message': 'Authorization header is required.'}, status=401)
+        
+        token = bearer.split()[1]
+        if not auth_user(token):
+            return JsonResponse({'success': False, 'message': 'Invalid Token.'}, status=401)
+        
+        decoded_token = jwt_decode(token)
+        admin_email = decoded_token.get('email')
+        
+        if not admin_email:
+            return JsonResponse({'success': False, 'message': 'Admin not found.'}, status=401)
+        
+        try:
+            admin_obj = User.objects.get(email__iexact=admin_email)
+            if not admin_obj.is_staff:
+                return JsonResponse({'success': False, 'message': 'You do not have admin access.'}, status=403)
+        except ObjectDoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Admin not found'}, status=404)
+        
+        profile_img = str(admin_obj.profile_picture)
+        
+        admin_details = {
+            'admin_email': admin_email,
+            'first_name': admin_obj.first_name,
+            'last_name': admin_obj.last_name,
+            'username': admin_obj.username,
+            'phone_number': admin_obj.phone_number,
+            'address': admin_obj.address,
+            'profile_image': profile_img,
+        }
+        
+        return JsonResponse({'success': True, 'message': 'Admin details retrieved successfully.', 'admin_details': admin_details}, status=200)
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error: {str(e)}'}, status=400)
 
 @csrf_exempt
 def admin_dashboard(request):
@@ -138,7 +183,7 @@ def admin_dashboard(request):
     target_avg_revenue = Decimal(20.0)
     all_time_performance_percentage = (all_time_avg_revenue_per_booking / target_avg_revenue) * Decimal(100) if target_avg_revenue > 0 else Decimal(0)
        
-    pending_print_jobs = PrintJob.objects.filter(status='pending')
+    pending_print_jobs = PrintJob.objects.filter(status='pending').order_by('-created_at')
         
     return JsonResponse({
         'success': True,
@@ -153,14 +198,77 @@ def admin_dashboard(request):
         'pending_print_jobs': [
             {
                 'id': job.id,
+                'user_name': job.user.first_name,
                 'document': job.document.url,
                 'bw_pages': job.bw_pages,
                 'color_pages': job.color_pages,
                 'created_at': job.created_at,
-                'status': job.status
+                'status': job.status,
+                'amount': job.payment.amount if hasattr(job, 'payment') else None
             } for job in pending_print_jobs
         ]
     }, status=200)
+    
+@csrf_exempt
+def approve_decline_payment(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': True, 'message': 'Invalid request method. Use POST!'}, status=405)
+    
+    try:
+        bearer = request.headers.get('Authorization')
+        if not bearer:
+            return JsonResponse({'success': False, 'message': 'Authorization header is required.'}, status=401)
+        
+        token = bearer.split()[1]
+        if not auth_user(token):
+            return JsonResponse({'success': False, 'message': 'Invalid Token.'}, status=401)
+        
+        decoded_token = jwt_decode(token)
+        admin_email = decoded_token.get('email')
+        
+        if not admin_email:
+            return JsonResponse({'success': False, 'message': 'Admin not found.'}, status=401)
+        
+        try:
+            admin_obj = User.objects.get(email__iexact=admin_email)
+            if not admin_obj.is_staff:
+                return JsonResponse({'success': False, 'message': 'You do not have admin access.'}, status=403)
+        except ObjectDoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Admin not found'}, status=404)
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Authentication failed: {str(e)}'}, status=401)
+
+    print_job_id = request.POST.get('print_job_id')
+    if not print_job_id:
+        return JsonResponse({'success': False, 'message': 'Print Job ID is required.'}, status=400)
+    
+    try:
+        print_job = PrintJob.objects.get(id=print_job_id)
+        
+        if 'approve' in request.POST:
+            print_job.is_payment = True
+            print_job.status = 'approved'
+            print_job.save()
+            
+            success, message = send_to_printer(print_job)
+            if success:
+                print_job.status = 'printed'
+                print_job.save()
+                return JsonResponse({'success': True, 'message': 'Payment approved and print job sent to printer.'}, status=200)
+            else:
+                return JsonResponse({'success': False, 'message': f'Payment approved, but printing failed: {message}'}, status=500)
+        
+        elif 'decline' in request.POST:
+            print_job.status = 'declined'
+            print_job.save()
+            return JsonResponse({'success': True, 'message': 'Payment declined successfully.'}, status=200)
+        
+        else:
+            return JsonResponse({'success': False, 'message': 'Invalid action. Use "approve" or "decline".'}, status=400)
+    
+    except PrintJob.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Print Job not found.'}, status=404)
 
 @csrf_exempt
 def print_jobs_list(request):
