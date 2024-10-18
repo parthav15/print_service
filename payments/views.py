@@ -18,6 +18,8 @@ def calculate_print_job_price(bw_pages, color_pages):
     
 client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
+import time
+
 @csrf_exempt
 def create_order(request):
     if request.method != 'POST':
@@ -31,36 +33,41 @@ def create_order(request):
     
     total_amount = calculate_print_job_price(print_job.bw_pages, print_job.color_pages) * 100
     
-    try:
-        order_data = {
-            'amount': int(total_amount),
-            'currency': 'INR',
-            'receipt': f'print_job_{print_job.id}',
-            'payment_capture': 1
-        }
-        razorpay_order = client.order.create(data=order_data)
+    retry_attempts = 3
+    for attempt in range(retry_attempts):
+        try:
+            order_data = {
+                'amount': int(total_amount),
+                'currency': 'INR',
+                'receipt': f'print_job_{print_job.id}',
+                'payment_capture': 1
+            }
+            razorpay_order = client.order.create(data=order_data)
+            
+            payment = Payment.objects.create(
+                print_job=print_job,
+                amount=total_amount / 100,
+                status='Pending',
+            )
+            
+            Transaction.objects.create(
+                payment=payment,
+                razorpay_order_id=razorpay_order['id']
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Order created successfully.',
+                'order_id': razorpay_order['id'],
+                'amount': total_amount,
+                'currency': 'INR',
+            }, status=200)
         
-        payment = Payment.objects.create(
-            print_job=print_job,
-            amount=total_amount / 100,
-            status='Pending',
-        )
-        
-        Transaction.objects.create(
-            payment=payment,
-            razorpay_order_id=razorpay_order['id']
-        )
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'Order created successfully.',
-            'order_id': razorpay_order['id'],
-            'amount': total_amount,
-            'currency': 'INR',
-        }, status=200)
-        
-    except Exception as e:
-        return JsonResponse({'success': False, 'message': f'Error creating order: {str(e)}'}, status=400)
+        except Exception as e:
+            if attempt < retry_attempts - 1:
+                time.sleep(2)
+                continue
+            return JsonResponse({'success': False, 'message': f'Error creating order: {str(e)}'}, status=400)
     
 @csrf_exempt
 def verify_order(request):

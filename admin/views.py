@@ -245,11 +245,15 @@ def approve_decline_payment(request):
     
     try:
         print_job = PrintJob.objects.get(id=print_job_id)
+        payment = Payment.objects.filter(print_job=print_job).first()
         
         if 'approve' in request.POST:
             print_job.is_payment = True
             print_job.status = 'approved'
             print_job.save()
+            
+            payment.status = 'Completed'
+            payment.save()
             
             success, message = send_to_printer(print_job)
             if success:
@@ -330,3 +334,30 @@ def print_jobs_list(request):
         'success': True,
         'print_jobs': jobs_data,
     }, status=200)
+
+def customer_list(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method. Use POST!'}, status=405)
+    
+    bearer = request.headers.get('Authorization')
+    if not bearer:
+        return JsonResponse({'success': False, 'message': 'Authorization header is required.'}, status=401)
+    
+    token = bearer.split()[1]
+    if not auth_user(token):
+        return JsonResponse({'success': False, 'message': 'Invalid Token'}, status=401)
+    
+    decoded_token = jwt_decode(token)
+    user_email = decoded_token.get('email')
+    
+    if not user_email:
+        return JsonResponse({'success': False, 'message': 'User not found.'}, status=404)
+    
+    try:
+        user_obj = User.objects.get(email__iexact=user_email)
+        if not user_obj.is_staff: 
+            return JsonResponse({'success': False, 'message': 'You do not have admin access.'}, status=403)
+    except ObjectDoesNotExist:
+        return JsonResponse({'success': False, 'message': 'User not found'}, status=404)
+    
+    
