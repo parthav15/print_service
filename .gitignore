@@ -1,3 +1,5 @@
 /env
 settings.py
 media/
+__pycache__/
+*.pyc
