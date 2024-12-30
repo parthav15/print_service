@@ -335,7 +335,7 @@ def print_jobs_list(request):
         'print_jobs': jobs_data,
     }, status=200)
 
-def customer_list(request):
+def customers_list(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid request method. Use POST!'}, status=405)
     
@@ -359,5 +359,68 @@ def customer_list(request):
             return JsonResponse({'success': False, 'message': 'You do not have admin access.'}, status=403)
     except ObjectDoesNotExist:
         return JsonResponse({'success': False, 'message': 'User not found'}, status=404)
+    
+    customer_id = request.POST.get('customer_id')
+    
+    if customer_id:
+        try:
+            customer = User.objects.get(id=customer_id, is_customer=True)
+        except ObjectDoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Customer not found'}, status=404)
+        
+        customer_jobs = PrintJob.objects.filter(user=customer).prefetch_related('payment')
+        
+        customer_data = {
+            'id': customer.id,
+            'email': customer.email,
+            'first_name': customer.first_name,
+            'last_name': customer.last_name,
+            'phone_number': customer.phone_number,
+            'address': customer.address,
+            'profile_picture': customer.profile_picture.url if customer.profile_picture else None,
+            'print_jobs': []
+        }
+        
+        for job in customer_jobs:
+            job_data = {
+                'id': job.id,
+                'document': job.document.url,
+                'bw_pages': job.bw_pages,
+                'color_pages': job.color_pages,
+                'is_printed': job.is_printed,
+                'is_payment': job.is_payment,
+                'status': job.status,
+                'created_at': job.created_at,
+            }
+            
+            if hasattr(job, 'payment'):
+                payment = job.is_payment
+                job_data['payment'] = {
+                    'amount': payment.amount,
+                    'status': payment.status,
+                    'transaction_id': payment.transaction_id,
+                }
+            else:
+                job_data['payment'] = None 
+            customer_data['print_jobs'].append(job_data)
+            
+        return JsonResponse({'success': True, 'message': 'Customer data fetched successfully', 'customer': customer_data}, status=200)
+    
+    else:
+        customers = User.objects.filter(is_customer=True)
+        customers_list = []
+        
+        for customer in customers:
+            customer_list.append({
+                'id': customer.id,
+                'email': customer.email,
+                'first_name': customer.first_name,
+                'last_name': customer.last_name,
+                'phone_number': customer.phone_number,
+                'address': customer.address,
+                'profile_picture': customer.profile_picture.url if customer.profile_picture else None
+            })
+            
+        return JsonResponse({'success': True, 'message': 'Customers data fetched successfully', 'customers': customers_list}, status=200)
     
     
