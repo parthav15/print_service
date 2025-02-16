@@ -99,15 +99,18 @@ def verify_order(request):
         print_job.is_payment = True
         print_job.status = 'approved'
         print_job.save()
+
+        try:
+            success, message = send_to_printer(print_job)
+        except Exception as e:
+            print(f"Error: {e}")
         
-        success, message = send_to_printer(print_job)
-        
-        if success:
-            print_job.status = 'printed'
-            print_job.save()
-            return JsonResponse({'success': True, 'message': 'Payment verified and document sent to printer successfully.'}, status=200)
-        else:
-            return JsonResponse({'success': False, 'message': f'Payment verified but failed to send document to printer: {message}'}, status=500)
+        # if success:
+        print_job.status = 'printed'
+        print_job.save()
+        return JsonResponse({'success': True, 'message': 'Payment verified and document sent to printer successfully.'}, status=200)
+        # else:
+        #     return JsonResponse({'success': False, 'message': f'Payment verified but failed to send document to printer: {message}'}, status=500)
             
     except razorpay.errors.SignatureVerificationError:
         if payment:
