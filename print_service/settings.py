@@ -71,7 +71,7 @@ DATABASES = {
         # 'OPTIONS': {
         #     'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         # },
-    }
+    # }
 }
 
 AUTH_USER_MODEL = 'printapp.User'
